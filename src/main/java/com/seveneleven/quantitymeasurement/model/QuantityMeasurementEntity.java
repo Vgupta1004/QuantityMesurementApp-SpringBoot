@@ -30,7 +30,7 @@ import lombok.*;
 	}
 )
 @Data
-//@NoArgsConstructor
+@NoArgsConstructor
 @AllArgsConstructor
 public class QuantityMeasurementEntity {
 	
@@ -61,6 +61,15 @@ public class QuantityMeasurementEntity {
     
     @Column(name = "result_string")
     private String resultString;
+    
+    @Column(name = "result_value")
+    private double resultValue;
+    
+    @Column(name = "result_unit")
+    private String resultUnit;
+    
+    @Column(name = "result_measurement_type")
+    private String resultMeasurementType;
     
     @Column(name = "is_error")
     private boolean isError;
