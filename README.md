@@ -41,7 +41,7 @@ The application will start on the default port (usually 8080).
 
 ## API Endpoints
 
-The application provides REST endpoints for quantity measurements and conversions. Refer to the API documentation or controller classes for detailed endpoint information.
+The application provides REST endpoints for quantity measurements and conversions.
 
 ## Building
 
@@ -57,7 +57,6 @@ mvn clean build
 - `/src/test` - Test files
 - `/pom.xml` - Maven configuration file
 
-## License
 
 This project is open source.
 
