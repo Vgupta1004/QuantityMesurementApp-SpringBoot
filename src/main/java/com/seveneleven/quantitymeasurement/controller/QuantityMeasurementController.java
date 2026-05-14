@@ -254,5 +254,10 @@ public class QuantityMeasurementController {
         List<QuantityMeasurementDTO> errors = service.getErrorHistory();
         return ResponseEntity.ok(errors);
     }
+
+	@GetMapping("/")
+    public String home(){
+        return "Application Running Properly!";
+    }
 	
 }
