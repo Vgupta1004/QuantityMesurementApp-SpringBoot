@@ -257,7 +257,7 @@ public class QuantityMeasurementController {
 
 	@GetMapping("/")
     public String home(){
-        return "Application Running Properly!";
+        return "Application Running Properly Finally!";
     }
 	
 }
