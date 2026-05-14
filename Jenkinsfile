@@ -23,15 +23,25 @@ pipeline {
 
         stage('Deploy to Backend') {
             steps {
-                sshagent(['backend-ssh']) {
-                    sh '''
-                    scp -o StrictHostKeyChecking=no target/*.jar ubuntu@172.31.39.168:/opt/quantityapp/app.jar
+                sh '''
+                set -e
 
-                    ssh -o StrictHostKeyChecking=no ubuntu@172.31.39.168 << EOF
+                JAR_FILE=$(ls target/*.jar | head -n 1)
+
+                echo "Deploying $JAR_FILE"
+
+                scp -o StrictHostKeyChecking=no \
+                    -i ~/.ssh/jenkins_ci_key \
+                    "$JAR_FILE" \
+                    ubuntu@172.31.39.168:/opt/quantityapp/app.jar
+
+                ssh -o StrictHostKeyChecking=no \
+                    -i ~/.ssh/jenkins_ci_key \
+                    ubuntu@172.31.39.168 << 'EOF'
                         sudo systemctl restart quantityapp
+                        sudo systemctl status quantityapp --no-pager
 EOF
-                    '''
-                }
+                '''
             }
         }
     }
