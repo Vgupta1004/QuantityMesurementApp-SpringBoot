@@ -6,12 +6,18 @@ pipeline {
         maven 'Maven'
     }
 
-    stages {
+    environment {
+        AWS_REGION     = 'ap-south-1' 
+        ECR_REGISTRY   = '281817609181.dkr.ecr.ap-south-1.amazonaws.com'
+        ECR_REPO       = 'quantitymeasurement'
+        IMAGE_TAG      = "${BUILD_NUMBER}" 
+        BACKEND_IP     = '172.31.35.135'  
+    }
 
-        stage('Clone Repository') {
+    stages {
+        stage('Checkout Code') {
             steps {
-                git branch: 'dev',
-                url: 'https://github.com/Vgupta1004/QuantityMesurementApp-SpringBoot.git'
+                git branch: 'dev', url: 'https://github.com/Vgupta1004/QuantityMesurementApp-SpringBoot.git'
             }
         }
 
@@ -21,27 +27,55 @@ pipeline {
             }
         }
 
-        stage('Deploy to Backend') {
+        stage('Login to AWS ECR') {
             steps {
-                sh '''
+                withAWS(credentials: 'aws-ecr-creds', region: "${AWS_REGION}") {
+                    echo "Logging into Amazon ECR on Jenkins Server..."
+                    sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}"
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo "Building image tag: ${IMAGE_TAG}"
+                sh "docker build -t ${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG} ."
+            }
+        }
+
+        stage('Push Image to ECR') {
+            steps {
+                echo "Pushing fresh image to AWS ECR..."
+                sh "docker push ${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
+            }
+        }
+
+        stage('SSH & Deploy to Backend') {
+            steps {
+                echo "Connecting to docker instance at ${BACKEND_IP}..."
+                sh """
                 set -e
-
-                JAR_FILE=$(ls target/*.jar | head -n 1)
-
-                echo "Deploying $JAR_FILE"
-
-                scp -o StrictHostKeyChecking=no \
-                    -i ~/.ssh/jenkins_deploy_key \
-                    "$JAR_FILE" \
-                    ubuntu@172.31.39.168:/opt/quantityapp/app.jar
-
-                ssh -o StrictHostKeyChecking=no \
-                    -i ~/.ssh/jenkins_deploy_key \
-                    ubuntu@172.31.39.168 << 'EOF'
-                        sudo systemctl restart quantityapp
-                        sudo systemctl status quantityapp --no-pager
+                ssh -o StrictHostKeyChecking=no -i ~/.ssh/jenkins_deploy_key ubuntu@${BACKEND_IP} << 'EOF'
+                    echo "1. Logging backend into AWS ECR..."
+                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                    
+                    cd /opt/quantityapp/
+                    
+                    echo "2. Setting deployment image tag to ${IMAGE_TAG}..."
+                    export IMAGE_TAG=${IMAGE_TAG}
+                    
+                    echo "3. Pulling updated image..."
+                    docker compose pull app
+                    
+                    echo "4. Re-creating application container..."
+                    docker compose up -d --no-deps app
+                    
+                    echo "5. Cleaning up stale Docker cache images..."
+                    docker image prune -f
+                    
+                    echo "Deployment Complete!"
 EOF
-                '''
+                """
             }
         }
     }
