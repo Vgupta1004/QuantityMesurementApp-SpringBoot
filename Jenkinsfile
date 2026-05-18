@@ -29,10 +29,9 @@ pipeline {
 
         stage('Login to AWS ECR') {
             steps {
-                withAWS(credentials: 'aws-ecr-creds', region: "${AWS_REGION}") {
-                    echo "Logging into Amazon ECR on Jenkins Server..."
-                    sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}"
-                }
+                echo "Logging into Amazon ECR natively using EC2 IAM Role..."
+                // The withAWS wrapper is gone! The IAM role handles this seamlessly.
+                sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}"
             }
         }
 
@@ -53,16 +52,23 @@ pipeline {
         stage('SSH & Deploy to Backend') {
             steps {
                 echo "Connecting to docker instance at ${BACKEND_IP}..."
+                
+                // Notice the variable injection syntax used below to send Jenkins values to the remote instance shell
                 sh """
                 set -e
-                ssh -o StrictHostKeyChecking=no -i ~/.ssh/jenkins_deploy_key ubuntu@${BACKEND_IP} << 'EOF'
-                    echo "1. Logging backend into AWS ECR..."
-                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                ssh -o StrictHostKeyChecking=no -i ~/.ssh/jenkins_deploy_key ubuntu@${BACKEND_IP} \
+                    AWS_REGION="${AWS_REGION}" \
+                    ECR_REGISTRY="${ECR_REGISTRY}" \
+                    IMAGE_TAG="${IMAGE_TAG}" \
+                    'bash -s' << 'EOF'
+                    
+                    echo "1. Logging backend instance into AWS ECR..."
+                    aws ecr get-login-password --region \${AWS_REGION} | docker login --username AWS --password-stdin \${ECR_REGISTRY}
                     
                     cd /opt/quantityapp/
                     
-                    echo "2. Setting deployment image tag to ${IMAGE_TAG}..."
-                    export IMAGE_TAG=${IMAGE_TAG}
+                    echo "2. Setting deployment image tag to \${IMAGE_TAG}..."
+                    export IMAGE_TAG=\${IMAGE_TAG}
                     
                     echo "3. Pulling updated image..."
                     docker compose pull app
