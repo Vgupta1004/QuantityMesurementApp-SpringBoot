@@ -11,7 +11,7 @@ pipeline {
         ECR_REGISTRY   = '281817609181.dkr.ecr.ap-south-1.amazonaws.com'
         ECR_REPO       = 'quantitymeasurement'
         IMAGE_TAG      = "${BUILD_NUMBER}" 
-        BACKEND_IP     = '172.31.35.135'  
+        BACKEND_IP     = '13.201.49.16'  
     }
 
     stages {
