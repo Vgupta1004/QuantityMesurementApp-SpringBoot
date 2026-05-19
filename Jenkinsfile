@@ -7,11 +7,12 @@ pipeline {
     }
 
     environment {
-        AWS_REGION     = 'ap-south-1' 
-        ECR_REGISTRY   = '281817609181.dkr.ecr.ap-south-1.amazonaws.com'
-        ECR_REPO       = 'quantitymeasurement'
-        IMAGE_TAG      = "${BUILD_NUMBER}" 
-        BACKEND_IP     = '13.201.49.16'  
+        AWS_REGION          = 'ap-south-1' 
+        ECR_REGISTRY        = '281817609181.dkr.ecr.ap-south-1.amazonaws.com'
+        ECR_REPO            = 'quantitymeasurement'
+        IMAGE_TAG           = "${BUILD_NUMBER}" 
+        BACKEND_IP          = '13.206.69.67'
+        BACKEND_INSTANCE_ID = 'i-0a05a1e78fdebf02b'
     }
 
     stages {
@@ -30,7 +31,6 @@ pipeline {
         stage('Login to AWS ECR') {
             steps {
                 echo "Logging into Amazon ECR natively using EC2 IAM Role..."
-                // The withAWS wrapper is gone! The IAM role handles this seamlessly.
                 sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}"
             }
         }
@@ -51,12 +51,21 @@ pipeline {
 
         stage('SSH & Deploy to Backend') {
             steps {
-                echo "Connecting to docker instance at ${BACKEND_IP}..."
-                
-                // Notice the variable injection syntax used below to send Jenkins values to the remote instance shell
+                echo "Pushing temporary public key to backend via AWS Instance Connect..."
                 sh """
                 set -e
-                ssh -o StrictHostKeyChecking=no -i ~/.ssh/jenkins_deploy_key ubuntu@${BACKEND_IP} \
+                
+                # Push the public key straight to the instance metadata interface
+                aws ec2-instance-connect send-ssh-public-key \
+                    --region ${AWS_REGION} \
+                    --instance-id ${BACKEND_INSTANCE_ID} \
+                    --instance-os-user ubuntu \
+                    --ssh-public-key file:///var/lib/jenkins/.ssh/jenkins_deploy_key.pub
+
+                echo "Connecting to docker instance via authorized EC2 Instance Connect tunnel..."
+                
+                # Execute standard deployment runtime script over the cleared tunnel connection
+                ssh -o StrictHostKeyChecking=no -i /var/lib/jenkins/.ssh/jenkins_deploy_key ubuntu@${BACKEND_IP} \
                     AWS_REGION="${AWS_REGION}" \
                     ECR_REGISTRY="${ECR_REGISTRY}" \
                     IMAGE_TAG="${IMAGE_TAG}" \
